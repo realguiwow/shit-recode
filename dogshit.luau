@@ -6270,12 +6270,16 @@ end)
 -- == State ==
 local RB_State, RF_State, AutoReload, DownCheck   = false, false, false, false
 local PredictionEnabled, PredictionTime               = false, 0.12
-local Debug_Rays, TargetMode, HitSoundSelection   = false, "Near", "None"
+local Debug_Rays, TargetMode, HitSoundSelection, KillSoundSelection = false, "Near", "None", "None"
 local Origin_Radius, Hit_Radius                   = 18.50, 23.50
 local Origin_Scans, Hit_Scans                     = 24, 24
 local ScanRate                                     = 14
+local CacheMode                                     = "old"
+local CacheVelocityThreshold                        = 2.5
+local CacheVelocityBreakTime                        = 0.08
+local CacheVelocityChangedAt                        = 0
 local Last_Shot, Valid_Pair, Locked_Path          = 0, nil, nil
-local WB = {LastScan=0, Cached=false, Toggle=false, Threshold=0.5, Round=0}
+local WB = {LastScan=0, LastMicroScan=0, Cached=false, Toggle=false, Threshold=0.35, Round=0}
 local NoFallEnabled                               = false
 local NR = {Enabled=false, Conns={}, OrigVals={}, Cache={}, RecoilVal=0}
 
@@ -6287,7 +6291,7 @@ local WV = {
     AtmosphereEnabled=false, AtmoColor=Color3.fromRGB(255,255,255), AtmoDecay=Color3.fromRGB(120,120,120),
     AtmoHaze=1, AtmoGlare=10, AtmoDensity=0.35, AtmoOffset=0,
     WeatherEnabled=false, WeatherType="Rain", WeatherColor=Color3.fromRGB(255,255,255), WeatherRate=600,
-    SkyboxEnabled=false, SkyboxType="Black Storm",
+    SkyboxEnabled=false, SkyboxType="Default",
     BGSoundEnabled=false, BGSoundTrack="Night", BGSoundVolume=25,
 }
 local WV_Lit  = game:GetService("Lighting")
@@ -6295,11 +6299,16 @@ local WV_Atmo = WV_Lit:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmo
 local WV_Sky  = WV_Lit:FindFirstChildOfClass("Sky") or Instance.new("Sky", WV_Lit)
 local WV_OrigSky = {Bk=WV_Sky.SkyboxBk,Dn=WV_Sky.SkyboxDn,Ft=WV_Sky.SkyboxFt,Lf=WV_Sky.SkyboxLf,Rt=WV_Sky.SkyboxRt,Up=WV_Sky.SkyboxUp}
 local WV_Skyboxes = {
-    ["Stormy"]     ={Up="18703232671",Bk="18703245834",Lf="18703237556",Dn="18703243349",Ft="18703240532",Rt="18703235430"},
-    ["Blue Space"] ={Up="15536117282",Bk="15536110634",Lf="15536114370",Dn="15536112543",Ft="15536116141",Rt="15536118762"},
-    ["Pink"]       ={Up="12216108877",Bk="12216109205",Lf="12216110170",Dn="12216109875",Ft="12216109489",Rt="12216110471"},
-    ["Black Storm"]={Up="15502511911",Bk="15502511288",Lf="15502507918",Dn="15502508460",Ft="15502510289",Rt="15502509398"},
-    ["Realistic"]  ={Up="653719321",  Bk="653719502",  Lf="653719190",  Dn="653718790",  Ft="653719067",  Rt="653718931"},
+    ["Default"]={Lf="rbxassetid://148943339",Bk="rbxassetid://148943390",Dn="rbxassetid://148943362",Ft="rbxassetid://148943404",Rt="rbxassetid://148943379",Up="rbxassetid://148943410"},
+    ["Nebula"]={Lf="rbxassetid://159454286",Bk="rbxassetid://159454390",Dn="rbxassetid://159454296",Ft="rbxassetid://159454293",Rt="rbxassetid://159454300",Up="rbxassetid://159454288"},
+    ["Blue Nebula"]={Bk="rbxassetid://79187608916257",Dn="rbxassetid://79187608916257",Ft="rbxassetid://135345543970829",Lf="rbxassetid://130684897818024",Rt="rbxassetid://134117814265945",Up="rbxassetid://128019898265074"},
+    ["Setting Hills"]={Lf="rbxassetid://264909758",Bk="rbxassetid://264908339",Dn="rbxassetid://264907909",Ft="rbxassetid://264909420",Rt="rbxassetid://264908886",Up="rbxassetid://264907379"},
+    ["Blue Aurora"]={Bk="rbxassetid://12064107",Dn="rbxassetid://12064152",Ft="rbxassetid://12064121",Lf="rbxassetid://12063984",Rt="rbxassetid://12064115",Up="rbxassetid://12064131"},
+    ["Red Aurora"]={Bk="rbxassetid://401664839",Dn="rbxassetid://401664862",Ft="rbxassetid://401664960",Lf="rbxassetid://401664881",Rt="rbxassetid://401664901",Up="rbxassetid://401664936"},
+    ["Pink Vision"]={Bk="rbxassetid://6593929026",Dn="rbxassetid://6593930140",Ft="rbxassetid://6593931249",Lf="rbxassetid://6593932587",Rt="rbxassetid://6593933789",Up="rbxassetid://6593935319"},
+    ["Twillight"]={Bk="rbxassetid://570557514",Dn="rbxassetid://570557775",Ft="rbxassetid://570557559",Lf="rbxassetid://570557620",Rt="rbxassetid://570557672",Up="rbxassetid://570557727"},
+    ["Distopia"]={Bk="rbxassetid://2240134413",Dn="rbxassetid://2240136039",Ft="rbxassetid://2240130790",Lf="rbxassetid://2240133550",Rt="rbxassetid://2240132643",Up="rbxassetid://2240135222"},
+    ["Peaceful"]={Bk="rbxassetid://73252679982122",Dn="rbxassetid://101074061181553",Ft="rbxassetid://112572775732134",Lf="rbxassetid://126931573973019",Rt="rbxassetid://135908172504233",Up="rbxassetid://124514468649717"},
 }
 local WV_Sounds = {
     ["Windy Winter"]="rbxassetid://6046340391", ["Light Rain"]="rbxassetid://18862087062",
@@ -6417,9 +6426,21 @@ local FF_S = {BodyEnabled=false, ToolEnabled=false, Color=Color3.fromRGB(255,255
 local TargetList, WhiteList                        = {}, {}
 
 local HitSounds = {
-    ["Skeet"]     = "rbxassetid://5633695679",
-    ["Neverlose"] = "rbxassetid://8726881116",
-    ["Gamesense"] = "rbxassetid://4817809188",
+    ["Minecraft"]="rbxassetid://7151570575",
+    ["Neverlose"]="rbxassetid://6607204501",
+    ["Bonk"]="rbxassetid://3765689841",
+    ["Bat"]="rbxassetid://3333907347",
+    ["Laser Beam"]="rbxassetid://130791043",
+    ["Gamesense"]="rbxassetid://5633695679",
+    ["Fatality"]="rbxassetid://6607142036",
+    ["Rust"]="rbxassetid://5043539486",
+    ["Bow"]="rbxassetid://93158957747276",
+}
+local KillSounds = {
+    ["Ultra Kill"]="rbxassetid://937885646",
+    ["Laugh"]="rbxassetid://9094639541",
+    ["Fatality"]="rbxassetid://158012252",
+    ["Sorry"]="rbxassetid://7405233417",
 }
 
 local SpeedState, JumpState, SpeedValue, JumpValue = false, false, 33.5, 73
@@ -6593,6 +6614,8 @@ HitLog.THEME = {
 
 -- ESP
 local BoxESP = { Boxes = {}, Conn = {} }
+local ESPFont = Font.new("rbxasset://fonts/families/ProggyClean.json")
+local ESPFontSize = 9
 local espSets = {
     enabled = false, targetOnly = false, outline = true, inline = true,
     outCol = Color3.fromRGB(255,255,255), inCol  = Color3.fromRGB(0,0,0),
@@ -6607,9 +6630,31 @@ local bodyParts = {
 }
 
 local reloadConnections = {}
+local autoReloadCharacterConnection = nil
+local autoReloadBoundCharacter = nil
+local ChatEnabled = false
 local PL_TargetSearch, PL_WhiteSearch = nil, nil
 local lastTickHadGun = false
 local ChangeMouseLockEvent = RepStorage:WaitForChild("Events2"):WaitForChild("ChangeMouseLock")
+
+-- HVH / TP Orbit
+local TP = {
+    Enabled=false,
+    NormalMode=true,
+    OrbitMode=false,
+    FFCheck=false,
+    DetectingLife=true,
+    ViewTarget=false,
+    ToolCheck=true,
+    OffsetX=0,
+    OffsetY=0,
+    OffsetZ=0,
+    OrbitSpeed=20,
+    Angle=0,
+    SelectedTargets={},
+    OriginalCameraSubject=nil,
+    TargetSearch=nil,
+}
 
 -- =====================================================================
 -- == Functions ==
@@ -6697,6 +6742,46 @@ local function AddLogEntry(text)
     end)
 end
 
+local function PlayUISound(soundId, volume)
+    if not soundId then return end
+    task.spawn(function()
+        pcall(function()
+            local s=Instance.new("Sound")
+            s.SoundId=soundId
+            s.Volume=volume or 1
+            s.Parent=Camera
+            s:Play()
+            Debris:AddItem(s,3)
+        end)
+    end)
+end
+
+local function BindKillSound(player)
+    if not player or player==LocalPlayer then return end
+    local char=player.Character
+    local hum=char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    if hum:GetAttribute("CAT_KillSoundBound") then return end
+    hum:SetAttribute("CAT_KillSoundBound", true)
+    hum.Died:Connect(function()
+        if KillSoundSelection ~= "None" and KillSounds[KillSoundSelection] then
+            PlayUISound(KillSounds[KillSoundSelection], 1)
+        end
+        if Library and Library.Notification then
+            Library:Notification("Kill", 'player "'..player.Name..'" died', 3)
+        end
+    end)
+end
+
+local function BindAllKillSounds()
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=LocalPlayer then
+            if p.Character then BindKillSound(p) end
+            p.CharacterAdded:Connect(function() task.wait(0.15); BindKillSound(p) end)
+        end
+    end
+end
+
 local function ProcessHitLog(tName, toolName, dmg, dist, cached)
     local s = string.format("rgb(%d,%d,%d)", 200,200,200)
     local g = string.format("rgb(%d,%d,%d)", 0,255,0)
@@ -6709,6 +6794,15 @@ local function ProcessHitLog(tName, toolName, dmg, dist, cached)
 end
 
 InitHitLog()
+
+BindAllKillSounds()
+
+Players.PlayerAdded:Connect(function(p)
+    if p~=LocalPlayer then
+        p.CharacterAdded:Connect(function() task.wait(0.15); BindKillSound(p) end)
+        if p.Character then BindKillSound(p) end
+    end
+end)
 
 local function CreateTracer(origin, dir)
     if not TR.Enabled then return end
@@ -6789,10 +6883,7 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local args = {...}
     if method == "FireServer" and self == ZF_H then
         if HitSoundSelection ~= "None" and HitSounds[HitSoundSelection] then
-            task.spawn(function()
-                local s = Instance.new("Sound", Camera); s.SoundId = HitSounds[HitSoundSelection]; s.Volume = 1; s:Play()
-                Debris:AddItem(s, 1)
-            end)
+            PlayUISound(HitSounds[HitSoundSelection], 1)
         end
     end
     if method == "FireServer" and NoFallEnabled and self.Name == "__RZDONL" then
@@ -6842,8 +6933,8 @@ local function GetCustomTag(char, tagName, offset)
         nameL.Size     = UDim2.new(1, 0, 0.5, 0)
         nameL.Position = UDim2.new(0, 0, 0, 0)
         nameL.TextColor3 = Color3.new(1,1,1)
-        nameL.FontFace   = SilkscreenFont
-        nameL.TextSize   = 7
+        nameL.FontFace   = ESPFont
+        nameL.TextSize   = ESPFontSize
         nameL.TextXAlignment = Enum.TextXAlignment.Center
         local s1 = Instance.new("UIStroke"); s1.Thickness = CONFIG.StrokeThickness
         s1.Color = Color3.new(0,0,0); s1.Parent = nameL
@@ -6854,8 +6945,8 @@ local function GetCustomTag(char, tagName, offset)
         distL.Size     = UDim2.new(1, 0, 0.5, 0)
         distL.Position = UDim2.new(0, 0, 0.5, 0)
         distL.TextColor3 = Color3.fromRGB(200, 200, 200)
-        distL.FontFace   = SilkscreenFont
-        distL.TextSize   = 7
+        distL.FontFace   = ESPFont
+        distL.TextSize   = ESPFontSize
         distL.TextXAlignment = Enum.TextXAlignment.Center
         local s2 = Instance.new("UIStroke"); s2.Thickness = CONFIG.StrokeThickness
         s2.Color = Color3.new(0,0,0); s2.Parent = distL
@@ -6872,8 +6963,8 @@ local function GetCustomTag(char, tagName, offset)
         ffL.Size     = UDim2.new(1,0,1,0)
         ffL.Text     = "FF"
         ffL.TextColor3 = Color3.new(1,1,1)
-        ffL.FontFace   = SilkscreenFont
-        ffL.TextSize   = 7
+        ffL.FontFace   = ESPFont
+        ffL.TextSize   = ESPFontSize
         ffL.TextXAlignment = Enum.TextXAlignment.Center
         local sFF = Instance.new("UIStroke"); sFF.Thickness = CONFIG.StrokeThickness
         sFF.Color = Color3.new(0,0,0); sFF.Parent = ffL
@@ -6891,8 +6982,8 @@ local function GetCustomTag(char, tagName, offset)
         hpL.BackgroundTransparency = 1
         hpL.Size     = UDim2.new(1,0,1,0)
         hpL.TextColor3 = Color3.new(1,1,1)
-        hpL.FontFace   = SilkscreenFont
-        hpL.TextSize   = 7
+        hpL.FontFace   = ESPFont
+        hpL.TextSize   = ESPFontSize
         hpL.TextXAlignment = Enum.TextXAlignment.Center
         local sHP = Instance.new("UIStroke"); sHP.Thickness = CONFIG.StrokeThickness
         sHP.Color = Color3.new(0,0,0); sHP.Parent = hpL
@@ -6906,56 +6997,78 @@ local function GetCustomTag(char, tagName, offset)
 end
 
 local function clearReloadConnections()
-    for _, c in pairs(reloadConnections) do c:Disconnect() end
-    reloadConnections = {}
+    for _, c in ipairs(reloadConnections) do
+        if c then pcall(function() c:Disconnect() end) end
+    end
+    table.clear(reloadConnections)
+    autoReloadBoundCharacter = nil
+end
+
+local function disableAutoReloadConnections()
+    clearReloadConnections()
+    if autoReloadCharacterConnection then
+        pcall(function() autoReloadCharacterConnection:Disconnect() end)
+        autoReloadCharacterConnection = nil
+    end
 end
 
 local function setupTool(tool)
     if not (tool and tool:FindFirstChild("IsGun") and AutoReload) then return end
-    local vals = tool:FindFirstChild("Values"); if not vals then return end
-    local sa, ssa = vals:FindFirstChild("SERVER_Ammo"), vals:FindFirstChild("SERVER_StoredAmmo")
-    local function reload() if AutoReload and ssa and ssa.Value ~= 0 then GN_R:FireServer(tick(),"KLWE89U0",tool) end end
-    if ssa then table.insert(reloadConnections, ssa:GetPropertyChangedSignal("Value"):Connect(reload)) end
-    if sa  then table.insert(reloadConnections, sa:GetPropertyChangedSignal("Value"):Connect(reload))  end
-end
-
-local function ShouldLock()
-    if not CL.Enabled then return false end
-    local char = LocalPlayer.Character
-    local tool = char and char:FindFirstChildOfClass("Tool")
-    if not tool or not tool:FindFirstChild("IsGun") then return false end
-    local vals = tool:FindFirstChild("Values")
-    return vals and vals:FindFirstChild("AimDown") and vals.AimDown.Value == true
-end
-
-local function IsVisible(origin, tPart)
-    local p = RaycastParams.new()
-    p.FilterType = Enum.RaycastFilterType.Exclude
-    p.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    local r = workspace:Raycast(origin, tPart.Position - origin, p)
-    return not r or r.Instance:IsDescendantOf(tPart.Parent)
-end
-
-local function GetVisibleParts(origin, char)
-    local vis = {}
-    for _, name in ipairs(CL.TargetParts) do
-        local p = char:FindFirstChild(name)
-        if p and IsVisible(origin, p) then table.insert(vis, p) end
+    local vals = tool:FindFirstChild("Values") or tool:WaitForChild("Values", 1)
+    if not vals then return end
+    local sa = vals:FindFirstChild("SERVER_Ammo")
+    local ssa = vals:FindFirstChild("SERVER_StoredAmmo")
+    local function reload()
+        if AutoReload and ssa and ssa.Parent and ssa.Value ~= 0 then
+            pcall(function() GN_R:FireServer(tick(),"KLWE89U0",tool) end)
+        end
     end
-    return #vis > 0 and vis or {char:FindFirstChild("HumanoidRootPart")}
+    if ssa then table.insert(reloadConnections, ssa:GetPropertyChangedSignal("Value"):Connect(reload)) end
+    if sa then table.insert(reloadConnections, sa:GetPropertyChangedSignal("Value"):Connect(reload)) end
+end
+
+local function bindAutoReloadCharacter(char)
+    if not AutoReload or not char then return end
+    clearReloadConnections()
+    autoReloadBoundCharacter = char
+
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if currentTool then
+        task.spawn(function()
+            if AutoReload and autoReloadBoundCharacter == char then setupTool(currentTool) end
+        end)
+    end
+
+    table.insert(reloadConnections, char.ChildAdded:Connect(function(o)
+        if not AutoReload or autoReloadBoundCharacter ~= char then return end
+        if o:IsA("Tool") then
+            task.spawn(function()
+                task.wait()
+                if AutoReload and autoReloadBoundCharacter == char and o.Parent == char then
+                    setupTool(o)
+                end
+            end)
+        end
+    end))
 end
 
 local function AutoReloadSetup()
-    clearReloadConnections(); if not AutoReload then return end
+    disableAutoReloadConnections()
+    if not AutoReload then return end
+
+    autoReloadCharacterConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        task.spawn(function()
+            if not AutoReload then return end
+            char:WaitForChild("Humanoid", 5)
+            char:WaitForChild("HumanoidRootPart", 5)
+            task.wait(0.1)
+            if AutoReload then bindAutoReloadCharacter(char) end
+        end)
+    end)
+
     if LocalPlayer.Character then
-        setupTool(LocalPlayer.Character:FindFirstChildOfClass("Tool"))
-        table.insert(reloadConnections, LocalPlayer.Character.ChildAdded:Connect(function(o) if o:IsA("Tool") then setupTool(o) end end))
+        bindAutoReloadCharacter(LocalPlayer.Character)
     end
-    table.insert(reloadConnections, LocalPlayer.CharacterAdded:Connect(function(c)
-        repeat task.wait() until c and c.Parent
-        clearReloadConnections(); setupTool(c:FindFirstChildOfClass("Tool"))
-        table.insert(reloadConnections, c.ChildAdded:Connect(function(o) if o:IsA("Tool") then setupTool(o) end end))
-    end))
 end
 
 local function StartMeleeLoop()
@@ -7809,12 +7922,12 @@ RunService.RenderStepped:Connect(function()
         end
         local ids = WV_Skyboxes[WV.SkyboxType]
         if ids then
-            currentSky.SkyboxBk = "rbxassetid://" .. ids.Bk
-            currentSky.SkyboxDn = "rbxassetid://" .. ids.Dn
-            currentSky.SkyboxFt = "rbxassetid://" .. ids.Ft
-            currentSky.SkyboxLf = "rbxassetid://" .. ids.Lf
-            currentSky.SkyboxRt = "rbxassetid://" .. ids.Rt
-            currentSky.SkyboxUp = "rbxassetid://" .. ids.Up
+            currentSky.SkyboxBk = ids.Bk
+            currentSky.SkyboxDn = ids.Dn
+            currentSky.SkyboxFt = ids.Ft
+            currentSky.SkyboxLf = ids.Lf
+            currentSky.SkyboxRt = ids.Rt
+            currentSky.SkyboxUp = ids.Up
         end
     else
         if WV_Sky.Parent == WV_Lit then WV_Sky.Parent = nil end
@@ -7825,18 +7938,152 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+local function ApplyChatEnabled()
+    if not ChatEnabled then return end
+    pcall(function()
+        local StarterGui = game:GetService("StarterGui")
+        local TextChatService = game:GetService("TextChatService")
+        StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+        if TextChatService.ChatWindowConfiguration then
+            TextChatService.ChatWindowConfiguration.Enabled = true
+        end
+        if TextChatService.ChatInputBarConfiguration then
+            TextChatService.ChatInputBarConfiguration.Enabled = true
+        end
+        task.spawn(function()
+            pcall(function()
+                StarterGui:ClearAllChildren()
+                RunService.RenderStepped:Wait()
+                StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+            end)
+        end)
+    end)
+end
+
+local function GetHVHTarget()
+    TP.SelectedTargets = TargetList
+    for _, name in ipairs(TP.SelectedTargets) do
+        local player = Players:FindFirstChild(name)
+        if player then
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then return player end
+        end
+    end
+end
+
+local function HasHVHTool()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    return char:FindFirstChildOfClass("Tool") ~= nil
+end
+
+local function RestoreHVHCamera()
+    if TP.OriginalCameraSubject then
+        Camera.CameraSubject = TP.OriginalCameraSubject
+        TP.OriginalCameraSubject = nil
+        return
+    end
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then Camera.CameraSubject = hum end
+end
+
+local function SetHVHViewTarget(player)
+    if not TP.ViewTarget then
+        RestoreHVHCamera()
+        return
+    end
+    if player and player.Character then
+        local hum = player.Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.Health > 0 then
+            if not TP.OriginalCameraSubject then TP.OriginalCameraSubject = Camera.CameraSubject end
+            Camera.CameraSubject = hum
+            return
+        end
+    end
+    RestoreHVHCamera()
+end
+
+
+RunService.Heartbeat:Connect(function(dt)
+    if not TP.Enabled then
+        if TP.OriginalCameraSubject then RestoreHVHCamera() end
+        return
+    end
+
+    if TP.ToolCheck and not HasHVHTool() then
+        if TP.OriginalCameraSubject then RestoreHVHCamera() end
+        return
+    end
+
+    local target = GetHVHTarget()
+    if not target or not target.Character then
+        if TP.OriginalCameraSubject then RestoreHVHCamera() end
+        return
+    end
+
+    local myChar = LocalPlayer.Character
+    local tarChar = target.Character
+    if not myChar or not tarChar then return end
+
+    local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    local tarRoot = tarChar:FindFirstChild("HumanoidRootPart")
+    local head = tarChar:FindFirstChild("Head")
+    local hum = tarChar:FindFirstChildOfClass("Humanoid")
+    if not myRoot or not tarRoot or not head then return end
+
+    if TP.DetectingLife and hum and hum.Health <= 0 then
+        TP.Enabled = false
+        RestoreHVHCamera()
+        return
+    end
+
+    if TP.FFCheck and (tarChar:FindFirstChild("ProtectionFF") or tarChar:FindFirstChild("SpawnFF")) then
+        SetHVHViewTarget(target)
+        return
+    end
+
+    SetHVHViewTarget(target)
+
+    if TP.NormalMode then
+        myRoot.CFrame = head.CFrame * CFrame.new(0, 3, 0)
+    elseif TP.OrbitMode then
+        local radius = 3 + TP.OffsetX
+        TP.Angle += dt * (TP.OrbitSpeed * 6)
+        local x = math.cos(TP.Angle) * radius
+        local z = math.sin(TP.Angle) * (3 + TP.OffsetZ)
+        local y = TP.OffsetY
+        local pos = tarRoot.Position + Vector3.new(x, y, z)
+        myRoot.CFrame = CFrame.lookAt(pos, tarRoot.Position)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    for i = #TP.SelectedTargets, 1, -1 do
+        if TP.SelectedTargets[i] == player.Name then table.remove(TP.SelectedTargets, i) end
+    end
+    if TP.ViewTarget and not GetHVHTarget() then RestoreHVHCamera() end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.delay(0.5, function()
+        if ChatEnabled then ApplyChatEnabled() end
+        if not TP.Enabled or not TP.ViewTarget then RestoreHVHCamera() end
+    end)
+end)
+
 -- =====================================================================
 -- == UI Construction (IIFE: all locals isolated from main chunk)
 -- =====================================================================
 ;(function()
 local Window    = Library:Window({Logo="77218680285262", FadeTime=0.3})
-local Watermark = Library:Watermark("guihax.lol")
+local Watermark = Library:Watermark("Cat.gg")
 local KeybindList = Library:KeybindList()
 
 do -- Combat page
     local Page  = Window:Page({Name="Combat", SubPages=true})
     local Rage  = Page:SubPage({Name="Ragebot",    Columns=2})
-    local Cam   = Page:SubPage({Name="Legit",      Columns=2})
     local Melee = Page:SubPage({Name="MeleeAura",  Columns=2})
     local SAPage = Page:SubPage({Name="Silent aim", Columns=2})
 
@@ -7871,31 +8118,6 @@ do -- Combat page
         s2:Slider({Name="Spin speed", Flag="CAT_Spin_speed_10", Min=0, Max=500, Default=50, Callback=function(v) SA.FOV_SpinSpeed=v end})
     end
 
-    do -- Camlock
-        local s1 = Cam:Section({Name="Camlock", Side=1})
-        s1:Toggle({Name="Enable", Flag="CAT_Enable_11",          Callback=function(v) CL.Enabled=v end}):Keybind({Flag="CAT_Enable_11_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Enable_11"] then Library.SetFlags["CAT_Enable_11"](v) end end})
-        s1:Toggle({Name="Target only", Flag="CAT_Target_only_12",     Callback=function(v) CL.TargetOnly=v end}):Keybind({Flag="CAT_Target_only_12_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Target_only_12"] then Library.SetFlags["CAT_Target_only_12"](v) end end})
-        s1:Toggle({Name="Auto prediction", Flag="CAT_Auto_prediction_13", Callback=function(v) CL.AutoPrediction=v end}):Keybind({Flag="CAT_Auto_prediction_13_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Auto_prediction_13"] then Library.SetFlags["CAT_Auto_prediction_13"](v) end end})
-        s1:Toggle({Name="Down check", Flag="CAT_Down_check_14",      Callback=function(v) CL.DownCheck=v end}):Keybind({Flag="CAT_Down_check_14_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Down_check_14"] then Library.SetFlags["CAT_Down_check_14"](v) end end})
-        s1:Slider({Name="FOV", Flag="CAT_FOV_15",          Min=10,  Max=800, Default=170, Callback=function(v) CL.FOV=v end})
-        s1:Slider({Name="Power", Flag="CAT_Power_16",        Min=0.1, Max=1,   Default=1,   Decimals=0.1, Callback=function(v) CL.Power=v end})
-        s1:Slider({Name="Shake power", Flag="CAT_Shake_power_17",  Min=0,   Max=1,   Default=0.2, Decimals=0.1, Callback=function(v) CL.Shake=v end})
-        s1:Slider({Name="Switch delay", Flag="CAT_Switch_delay_18", Min=0.1, Max=1,   Default=0.1, Decimals=0.1, Callback=function(v) CL.Delay=v end})
-        local s2 = Cam:Section({Name="Camlock Config", Side=2})
-        s2:Dropdown({Name="Target Parts", Flag="CAT_CL_TargetParts",
-            Items={"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"},
-            Default={"Head","Torso","Left Arm","Right Arm","Left Leg","Right Leg"},
-            Multi=true, Callback=function(v) CL.TargetParts=v end})
-        local s3 = Cam:Section({Name="Other", Side=2})
-        s3:Toggle({Name="No Recoil", Flag="CAT_LG_NoRecoil", Default=false, Callback=function(v)
-            if v then NR_Enable() else NR_Disable() end
-        end}):Keybind({Flag="CAT_LG_NoRecoil_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_LG_NoRecoil"] then Library.SetFlags["CAT_LG_NoRecoil"](v) end end})
-        s3:Slider({Name="Recoil", Flag="CAT_LG_RecoilVal", Min=0, Max=1, Default=0, Decimals=0.1, Callback=function(v)
-            NR.RecoilVal = v
-            if NR.Enabled then NR_Apply() end
-        end})
-    end
-
     do -- Melee Aura
         local s = Melee:Section({Name="Melee Aura", Side=1})
         s:Toggle({Name="Enable", Flag="CAT_Enable_19",          Callback=function(v) MA.Enabled=v; if v then StartMeleeLoop() end end}):Keybind({Flag="CAT_Enable_19_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Enable_19"] then Library.SetFlags["CAT_Enable_19"](v) end end})
@@ -7910,7 +8132,7 @@ do -- Combat page
         local s1 = Rage:Section({Name="Settings", Side=1})
         s1:Toggle({Name="Enable", Flag="CAT_Enable_25",       Callback=function(v) RB_State=v end}):Keybind({Flag="CAT_Enable_25_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Enable_25"] then Library.SetFlags["CAT_Enable_25"](v) end end})
         s1:Toggle({Name="Rapid fire", Flag="CAT_Rapid_fire_26",   Callback=function(v) RF_State=v end}):Keybind({Flag="CAT_Rapid_fire_26_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Rapid_fire_26"] then Library.SetFlags["CAT_Rapid_fire_26"](v) end end})
-        s1:Toggle({Name="Auto Reload", Flag="CAT_Auto_Reload_27",  Callback=function(v) AutoReload=v; if v then AutoReloadSetup() else clearReloadConnections() end end}):Keybind({Flag="CAT_Auto_Reload_27_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Auto_Reload_27"] then Library.SetFlags["CAT_Auto_Reload_27"](v) end end})
+        s1:Toggle({Name="Auto Reload", Flag="CAT_Auto_Reload_27",  Callback=function(v) AutoReload=v; if v then AutoReloadSetup() else disableAutoReloadConnections() end end}):Keybind({Flag="CAT_Auto_Reload_27_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Auto_Reload_27"] then Library.SetFlags["CAT_Auto_Reload_27"](v) end end})
         s1:Toggle({Name="Down Check", Flag="CAT_Down_Check_28",   Callback=function(v) DownCheck=v end}):Keybind({Flag="CAT_Down_Check_28_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Down_Check_28"] then Library.SetFlags["CAT_Down_Check_28"](v) end end})
         s1:Toggle({Name="Prediction", Flag="CAT_Prediction_29", Default=false, Callback=function(v)
             PredictionEnabled=v
@@ -7922,15 +8144,22 @@ do -- Combat page
             Locked_Path=nil
             Valid_Pair=nil
         end})
-      s1:Slider({Name="Max Cache", Flag="CAT_Max_Cache_30",    Min=0.1, Max=25,  Default=0.5,   Decimals=0.01, Callback=function(v) WB.Threshold=v end})
+      s1:Slider({Name="Max Cache", Flag="CAT_Max_Cache_30",    Min=0.1, Max=25,  Default=0.35,  Decimals=0.01, Callback=function(v) WB.Threshold=v end})
+        s1:Dropdown({Name="Cache Mode", Flag="CAT_Cache_Mode_30", Items={"old","velocity"}, Default="old", Callback=function(v)
+            CacheMode=v
+            Locked_Path=nil
+            Valid_Pair=nil
+            WB.Cached=false
+        end})
         s1:Slider({Name="Origin Radius", Flag="CAT_Origin_Radius_31",Min=0.1, Max=20, Default=18.50, Decimals=0.01, Callback=function(v) Origin_Radius=v end})
         s1:Slider({Name="Origin Scans", Flag="CAT_Origin_Scans_32", Min=1,   Max=50, Default=24,    Callback=function(v) Origin_Scans=math.floor(v) end})
-        s1:Slider({Name="Scan Rate",    Flag="CAT_Scan_Rate",       Min=1,   Max=60, Default=14,    Callback=function(v) ScanRate=math.floor(v) end})
+        s1:Slider({Name="Scan Rate",    Flag="CAT_Scan_Rate",       Min=1,   Max=120, Default=90,    Callback=function(v) ScanRate=math.floor(v) end})
         s1:Slider({Name="Hit Radius", Flag="CAT_Hit_Radius_33",   Min=0.1, Max=25, Default=23.50, Decimals=0.01, Callback=function(v) Hit_Radius=v end})
         s1:Slider({Name="Hit Scans", Flag="CAT_Hit_Scans_34",    Min=1,   Max=50, Default=24,    Callback=function(v) Hit_Scans=math.floor(v) end})
         local s2 = Rage:Section({Name="Target Selection", Side=2})
         s2:Dropdown({Name="Target Mode", Flag="CAT_Target_Mode_35", Items={"Near","Mouse","Centre","Lock"},         Default="Near", Callback=function(v) TargetMode=v end})
-        s2:Dropdown({Name="Hit Sound", Flag="CAT_Hit_Sound_36",   Items={"None","Skeet","Neverlose","Gamesense"}, Default="None", Callback=function(v) HitSoundSelection=v end})
+        s2:Dropdown({Name="Hit Sound", Flag="CAT_Hit_Sound_36", Items={"None","Minecraft","Neverlose","Bonk","Bat","Laser Beam","Gamesense","Fatality","Rust","Bow"}, Default="None", Callback=function(v) HitSoundSelection=v end})
+        s2:Dropdown({Name="Kill Sound", Flag="CAT_Kill_Sound_37", Items={"None","Ultra Kill","Laugh","Fatality","Sorry"}, Default="None", Callback=function(v) KillSoundSelection=v end})
     end
 end
 
@@ -7970,7 +8199,7 @@ do -- Visuals page
         skySec:Toggle({Name="Custom Skybox", Flag="WV_Skybox", Default=false, Callback=function(v)
             WV.SkyboxEnabled=v
         end}):Keybind({Flag="WV_Skybox_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["WV_Skybox"] then Library.SetFlags["WV_Skybox"](v) end end})
-        skySec:Dropdown({Name="Skybox Theme", Flag="WV_SkyboxType", Items={"Black Storm","Blue Space","Realistic","Stormy","Pink"}, Default="Black Storm", Callback=function(v) WV.SkyboxType=v end})
+        skySec:Dropdown({Name="Skybox Theme", Flag="WV_SkyboxType", Items={"Default","Nebula","Blue Nebula","Setting Hills","Blue Aurora","Red Aurora","Pink Vision","Twillight","Distopia","Peaceful"}, Default="Default", Callback=function(v) WV.SkyboxType=v end})
         local wxT = skySec:Toggle({Name="Weather", Flag="WV_Weather", Default=false, Callback=function(v)
             WV.WeatherEnabled=v
             WV_WeatherPart.Parent = v and Workspace or nil
@@ -8057,6 +8286,22 @@ do -- Visuals page
         sec:Toggle({Name="Nametag", Flag="CAT_Nametag_42",  Default=false, Callback=function(v) NametagEnabled=v; if not v then for _,p in pairs(Players:GetPlayers()) do local t=p.Character and p.Character:FindFirstChild("CAT_NameTag"); local l=t and t:FindFirstChild("L"); if l then l.Visible=false; if not DistanceEnabled then t.Enabled=false end end end end end}):Keybind({Flag="CAT_Nametag_42_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Nametag_42"] then Library.SetFlags["CAT_Nametag_42"](v) end end})
         sec:Toggle({Name="Distance", Flag="CAT_Distance_43", Default=false, Callback=function(v) DistanceEnabled=v; if not v then for _,p in pairs(Players:GetPlayers()) do local t=p.Character and p.Character:FindFirstChild("CAT_NameTag"); local l=t and t:FindFirstChild("DL"); if l then l.Visible=false; if not NametagEnabled then t.Enabled=false end end end end end}):Keybind({Flag="CAT_Distance_43_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Distance_43"] then Library.SetFlags["CAT_Distance_43"](v) end end})
         sec:Toggle({Name="Health", Flag="CAT_Health_44",   Default=false, Callback=function(v) HealthEnabled=v;  if not v then for _,p in pairs(Players:GetPlayers()) do local t=p.Character and p.Character:FindFirstChild("CAT_NameTag"); local l=t and t:FindFirstChild("HL"); if l then l.Visible=false end end end end}):Keybind({Flag="CAT_Health_44_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Health_44"] then Library.SetFlags["CAT_Health_44"](v) end end})
+        sec:Slider({Name="Font Size", Flag="CAT_ESP_Font_Size", Min=6, Max=20, Default=9, Decimals=1, Callback=function(v)
+            ESPFontSize=v
+            for _,p in ipairs(Players:GetPlayers()) do
+                local ch=p.Character
+                if ch then
+                    for _,n in ipairs({"CAT_NameTag","CAT_FFTag","CAT_HPTag"}) do
+                        local gui=ch:FindFirstChild(n)
+                        if gui then
+                            for _,d in ipairs(gui:GetDescendants()) do
+                                if d:IsA("TextLabel") then d.FontFace=ESPFont; d.TextSize=v end
+                            end
+                        end
+                    end
+                end
+            end
+        end})
         sec:Toggle({Name="Safe Chams", Flag="CAT_Safe_Chams_45", Default=false, Callback=function(v) SafeChamsEnabled = v; if v then StartSafeChams() end end}):Keybind({Flag="CAT_Safe_Chams_45_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Safe_Chams_45"] then Library.SetFlags["CAT_Safe_Chams_45"](v) end end})
         local ct = sec:Toggle({Name="Chams", Flag="CAT_VS_Chams", Default=false, Callback=function(v)
             espSets.enabled=v
@@ -8201,10 +8446,47 @@ do -- Antis page
     end
 end
 
+do -- HVH page
+    local Page = Window:Page({Name="hvh", SubPages=false})
+    local sTP = Page:Section({Name="TP Orbit", Side=1})
+    TP.SelectedTargets = TargetList
+    sTP:Toggle({Name="TP", Flag="HVH_TP", Callback=function(v)
+        TP.Enabled=v
+        if not v then RestoreHVHCamera() end
+    end}):Keybind({Flag="HVH_TP_KB", Mode="Toggle", Callback=function(v)
+        if Library and Library.SetFlags and Library.SetFlags["HVH_TP"] then Library.SetFlags["HVH_TP"](v) end
+    end})
+    sTP:Toggle({Name="Normal Mode", Flag="HVH_Normal", Default=true, Callback=function(v)
+        TP.NormalMode=v
+        if v then TP.OrbitMode=false end
+    end})
+    sTP:Toggle({Name="Orbit Mode", Flag="HVH_Orbit", Default=false, Callback=function(v)
+        TP.OrbitMode=v
+        if v then TP.NormalMode=false end
+    end})
+    sTP:Toggle({Name="View Target", Flag="HVH_ViewTarget", Callback=function(v)
+        TP.ViewTarget=v
+        if not v then RestoreHVHCamera() end
+    end})
+    sTP:Toggle({Name="Tool Check", Flag="HVH_ToolCheck", Default=true, Callback=function(v) TP.ToolCheck=v end})
+    sTP:Toggle({Name="FF Check", Flag="HVH_FFCheck", Default=false, Callback=function(v) TP.FFCheck=v end})
+    sTP:Toggle({Name="Detecting Life", Flag="HVH_DetectLife", Default=true, Callback=function(v) TP.DetectingLife=v end})
+
+    local sOffset = Page:Section({Name="Orbit Settings", Side=2})
+    sOffset:Slider({Name="X", Flag="HVH_X", Min=0, Max=25, Default=0, Callback=function(v) TP.OffsetX=v end})
+    sOffset:Slider({Name="Y", Flag="HVH_Y", Min=0, Max=25, Default=0, Callback=function(v) TP.OffsetY=v end})
+    sOffset:Slider({Name="Z", Flag="HVH_Z", Min=0, Max=25, Default=0, Callback=function(v) TP.OffsetZ=v end})
+    sOffset:Slider({Name="Speed", Flag="HVH_Speed", Min=1, Max=100, Default=20, Callback=function(v) TP.OrbitSpeed=v end})
+end
+
 do -- Misc page
     local Page = Window:Page({Name="Misc", SubPages=false})
     
     local sL   = Page:Section({Name="Shiftlock", Side=1})
+    sL:Toggle({Name="Chat Enabled", Flag="CAT_Chat_Enabled", Default=false, Callback=function(v)
+        ChatEnabled=v
+        if v then ApplyChatEnabled() end
+    end})
     sL:Toggle({Name="Anti auto shiftlock", Flag="CAT_Anti_auto_shiftlock_69", Callback=function(v) MC.AntiShift=v end}):Keybind({Flag="CAT_Anti_auto_shiftlock_69_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Anti_auto_shiftlock_69"] then Library.SetFlags["CAT_Anti_auto_shiftlock_69"](v) end end})
     sL:Slider( {Name="Delay", Flag="CAT_Delay_70", Min=0.01, Max=0.50, Default=0.05, Decimals=0.01, Callback=function(v) MC.ShiftDelay=v end})
     
@@ -8595,23 +8877,49 @@ local function DoRagebot()
         end
     else
         targetPart=target.Character:FindFirstChild("Head") or tRoot
-        targetPredictedPos=tRoot.Position
+        targetPredictedPos=targetPart.Position
     end
     local tPos=targetPredictedPos
 
-    -- 1. 缓存机制 (如果上一发的轨迹依然有效，直接复用，不扫描)
+    -- 1. 缓存机制
     if Locked_Path then
-        local dO=(myPos-Locked_Path.MyPos).Magnitude
-        local dH=(tPos-Locked_Path.TPos).Magnitude
-        local inRange=(myPos-Locked_Path.AbsO).Magnitude<=Origin_Radius
-                   and (tPos-Locked_Path.AbsH).Magnitude<=Hit_Radius
-        if dO<=WB.Threshold and dH<=WB.Threshold and inRange then
-            if CheckWallbang(Locked_Path.AbsO,Locked_Path.AbsH) then
-                Valid_Pair={Origin=Locked_Path.AbsO,Hit=Locked_Path.AbsH,Target=target,Part=Locked_Path.Part}
-                WB.Cached=true; return
+        local cacheInvalid=false
+        if CacheMode=="velocity" then
+            local cachedVelocity=Locked_Path.TargetVelocity
+            local currentVelocity=tRoot.AssemblyLinearVelocity
+            if cachedVelocity then
+                local velocityDelta=(currentVelocity-cachedVelocity).Magnitude
+                if velocityDelta>CacheVelocityThreshold then
+                    if CacheVelocityChangedAt==0 then
+                        CacheVelocityChangedAt=tick()
+                    elseif tick()-CacheVelocityChangedAt>=CacheVelocityBreakTime then
+                        cacheInvalid=true
+                    end
+                else
+                    CacheVelocityChangedAt=0
+                end
             end
         end
-        Locked_Path=nil
+        if cacheInvalid then
+            Locked_Path=nil
+            Valid_Pair=nil
+            WB.Cached=false
+            CacheVelocityChangedAt=0
+        else
+            local dO=(myPos-Locked_Path.MyPos).Magnitude
+            local dH=(tPos-Locked_Path.TPos).Magnitude
+            local inRange=(myPos-Locked_Path.AbsO).Magnitude<=Origin_Radius
+                       and (tPos-Locked_Path.AbsH).Magnitude<=Hit_Radius
+            if dO<=WB.Threshold and dH<=WB.Threshold and inRange then
+                if CheckWallbang(Locked_Path.AbsO,Locked_Path.AbsH) then
+                    Valid_Pair={Origin=Locked_Path.AbsO,Hit=Locked_Path.AbsH,Target=target,Part=Locked_Path.Part}
+                    WB.Cached=true
+                    return
+                end
+            end
+            Locked_Path=nil
+            CacheVelocityChangedAt=0
+        end
     end
 
     -- 2. 扫描速率限制
@@ -8638,24 +8946,28 @@ local function DoRagebot()
         newTarget = GetOffsets_Algo2(tPos, hPole, Hit_Radius, Hit_Scans)
     end
 
-    -- 4. 双重循环穷举寻找合法弹道 (找到即返回，不再比较距离)
-    local bestPO, bestPH = nil, nil
+    -- 4. 穷举所有合法弹道，优先选择最靠近目标中心的命中点
+    local bestPO, bestPH, bestScore = nil, nil, math.huge
 
     for _, pO in ipairs(newOrigin) do
         for _, pH in ipairs(newTarget) do
             if CheckWallbang(pO, pH) then
-                -- 找到第一条合法路径，立即锁定并跳出循环
-                bestPO = pO
-                bestPH = pH
-                break
+                local hitOffset = (pH - tPos).Magnitude
+                local originOffset = (pO - myPos).Magnitude
+                local score = hitOffset * 4 + originOffset
+                if score < bestScore then
+                    bestScore = score
+                    bestPO = pO
+                    bestPH = pH
+                end
             end
         end
-        if bestPO then break end -- 找到就跳出外层循环
     end
 
     -- 5. 更新缓存与射击对
     if bestPO then
-        Locked_Path={AbsO=bestPO,AbsH=bestPH,Target=target,Part=targetPart,MyPos=myPos,TPos=tPos}
+        Locked_Path={AbsO=bestPO,AbsH=bestPH,Target=target,Part=targetPart,MyPos=myPos,TPos=tPos,TargetVelocity=tRoot.AssemblyLinearVelocity}
+        CacheVelocityChangedAt=0
         Valid_Pair={Origin=bestPO,Hit=bestPH,Target=target,Part=targetPart}
         WB.Cached=false
     else
