@@ -6347,7 +6347,13 @@ local CONFIG = {
 local NametagEnabled, DistanceEnabled, HealthEnabled = false, false, false
 local LastVisualUpdate, LastContentUpdate         = 0, 0
 local InfStaminaEnabled, InfStaminaConnection     = false, nil
-local TR = {Enabled=false, Size=1, Color=Color3.fromRGB(255,255,255), Alpha=0}
+local TracerProperties = {
+    ["Obelus"] = {Texture="rbxassetid://2382169232",Brightness=1.5,Transparency=NumberSequence.new(0.45),LightEmission=1,LightInfluence=0,Segments=1,TextureLength=5,TextureMode=Enum.TextureMode.Stretch,TextureSpeed=0,Width0=0.3,Width1=0.3,FaceCamera=true},
+    ["Lightning"] = {Texture="rbxassetid://7151778302",Brightness=1.5,Transparency=NumberSequence.new(0.45),LightEmission=1,LightInfluence=0,Segments=10,TextureLength=1,TextureMode=Enum.TextureMode.Stretch,TextureSpeed=1,Width0=1.2,Width1=1.2,FaceCamera=true},
+    ["DNA"] = {Texture="rbxassetid://7071778278",Brightness=1.5,Transparency=NumberSequence.new(0.45),LightEmission=1,LightInfluence=0,Segments=1,TextureLength=12,TextureMode=Enum.TextureMode.Wrap,TextureSpeed=1,Width0=0.6,Width1=0.6,FaceCamera=true},
+}
+local TR = {Enabled=false, Size=1, Color=Color3.fromRGB(255,255,255), Alpha=0, Texture="Obelus"}
+local TargetColors = {Whitelist=Color3.fromRGB(135,206,235), Target=Color3.fromRGB(255,0,0)}
 local HitLogEnabled                               = false
 
 -- Antis
@@ -6764,6 +6770,7 @@ local function BindKillSound(player)
     if hum:GetAttribute("CAT_KillSoundBound") then return end
     hum:SetAttribute("CAT_KillSoundBound", true)
     hum.Died:Connect(function()
+        if not table.find(TargetList, player.Name) then return end
         if KillSoundSelection ~= "None" and KillSounds[KillSoundSelection] then
             PlayUISound(KillSounds[KillSoundSelection], 1)
         end
@@ -6809,12 +6816,21 @@ local function CreateTracer(origin, dir)
     local a0 = Instance.new("Attachment", Workspace.Terrain); a0.Position = origin
     local a1 = Instance.new("Attachment", Workspace.Terrain); a1.Position = origin + dir.Unit*1000
     local beam = Instance.new("Beam", Workspace.Terrain)
-    beam.Texture = "rbxassetid://7071778278"
-    beam.Width0, beam.Width1 = TR.Size, TR.Size
+    local props = TracerProperties[TR.Texture] or TracerProperties.Obelus
+    beam.Texture = props.Texture
+    beam.Brightness = props.Brightness
+    beam.Transparency = props.Transparency
+    beam.LightEmission = props.LightEmission
+    beam.LightInfluence = props.LightInfluence
+    beam.Segments = props.Segments
+    beam.TextureLength = props.TextureLength
+    beam.TextureMode = props.TextureMode
+    beam.TextureSpeed = props.TextureSpeed
+    beam.Width0, beam.Width1 = props.Width0 * TR.Size, props.Width1 * TR.Size
+    beam.FaceCamera = props.FaceCamera
     beam.Color = ColorSequence.new(TR.Color)
-    beam.Transparency = NumberSequence.new(TR.Alpha)
+    if TR.Alpha ~= 0 then beam.Transparency = NumberSequence.new(TR.Alpha) end
     beam.Attachment0, beam.Attachment1 = a0, a1
-    beam.FaceCamera, beam.LightEmission = true, 1
     Debris:AddItem(a0,4); Debris:AddItem(a1,4); Debris:AddItem(beam,4)
 end
 
@@ -8078,7 +8094,7 @@ end)
 -- =====================================================================
 ;(function()
 local Window    = Library:Window({Logo="77218680285262", FadeTime=0.3})
-local Watermark = Library:Watermark("guihax.lol")
+local Watermark = Library:Watermark("Cat.gg")
 local KeybindList = Library:KeybindList()
 
 do -- Combat page
@@ -8260,6 +8276,7 @@ do -- Visuals page
         local t = sec:Toggle({Name="Enable", Flag="CAT_Enable_38", Callback=function(v) TR.Enabled=v end})
         t:Keybind({Flag="CAT_Enable_38_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Enable_38"] then Library.SetFlags["CAT_Enable_38"](v) end end})
         t:Colorpicker({Name="Tracer Color", Flag="CAT_Tracer_Color_39", Default=TR.Color, Callback=function(c,a) TR.Color=c; TR.Alpha=a end})
+        sec:Dropdown({Name="Texture", Flag="CAT_Tracer_Texture_40", Items={"Obelus","Lightning","DNA"}, Default=TR.Texture, Multi=false, Callback=function(v) TR.Texture=tostring(v) end})
         sec:Slider({Name="Size", Flag="CAT_Size_40", Min=0.1, Max=10, Default=1, Decimals=0.1, Callback=function(v) TR.Size=v end})
     end
 
@@ -8286,6 +8303,10 @@ do -- Visuals page
         sec:Toggle({Name="Nametag", Flag="CAT_Nametag_42",  Default=false, Callback=function(v) NametagEnabled=v; if not v then for _,p in pairs(Players:GetPlayers()) do local t=p.Character and p.Character:FindFirstChild("CAT_NameTag"); local l=t and t:FindFirstChild("L"); if l then l.Visible=false; if not DistanceEnabled then t.Enabled=false end end end end end}):Keybind({Flag="CAT_Nametag_42_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Nametag_42"] then Library.SetFlags["CAT_Nametag_42"](v) end end})
         sec:Toggle({Name="Distance", Flag="CAT_Distance_43", Default=false, Callback=function(v) DistanceEnabled=v; if not v then for _,p in pairs(Players:GetPlayers()) do local t=p.Character and p.Character:FindFirstChild("CAT_NameTag"); local l=t and t:FindFirstChild("DL"); if l then l.Visible=false; if not NametagEnabled then t.Enabled=false end end end end end}):Keybind({Flag="CAT_Distance_43_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Distance_43"] then Library.SetFlags["CAT_Distance_43"](v) end end})
         sec:Toggle({Name="Health", Flag="CAT_Health_44",   Default=false, Callback=function(v) HealthEnabled=v;  if not v then for _,p in pairs(Players:GetPlayers()) do local t=p.Character and p.Character:FindFirstChild("CAT_NameTag"); local l=t and t:FindFirstChild("HL"); if l then l.Visible=false end end end end}):Keybind({Flag="CAT_Health_44_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Health_44"] then Library.SetFlags["CAT_Health_44"](v) end end})
+        local tc=sec:Toggle({Name="Whitelist Color", Flag="CAT_ESP_WhitelistColor", Default=true, Callback=function(v) end})
+        tc:Colorpicker({Name="Whitelist", Flag="CAT_ESP_WhitelistColorPicker", Default=TargetColors.Whitelist, Callback=function(c) TargetColors.Whitelist=c end})
+        local tt=sec:Toggle({Name="Target Color", Flag="CAT_ESP_TargetColor2", Default=true, Callback=function(v) end})
+        tt:Colorpicker({Name="Target", Flag="CAT_ESP_TargetColorPicker", Default=TargetColors.Target, Callback=function(c) TargetColors.Target=c end})
         sec:Slider({Name="Font Size", Flag="CAT_ESP_Font_Size", Min=6, Max=20, Default=9, Decimals=1, Callback=function(v)
             ESPFontSize=v
             for _,p in ipairs(Players:GetPlayers()) do
@@ -8389,9 +8410,48 @@ do -- Player page
     end}):Keybind({Flag="CAT_PL_InfStamina_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_PL_InfStamina"] then Library.SetFlags["CAT_PL_InfStamina"](v) end end})
 end
 
+
+local PredictionBreaker={Enabled=false,Speed=1000,Radius=10,Connection=nil}
+local function GetPredictionBreakerDirection(root)
+    local closest,dist=nil,PredictionBreaker.Radius
+    for _,player in ipairs(Players:GetPlayers()) do
+        if player~=LocalPlayer then
+            local character=player.Character
+            local targetRoot=character and character:FindFirstChild("HumanoidRootPart")
+            if targetRoot then
+                local current=(targetRoot.Position-root.Position).Magnitude
+                if current<=dist then dist=current;closest=targetRoot end
+            end
+        end
+    end
+    if closest then return (root.Position-closest.Position).Unit end
+end
+local function SetPredictionBreaker(enabled)
+    PredictionBreaker.Enabled=enabled
+    if PredictionBreaker.Connection then PredictionBreaker.Connection:Disconnect();PredictionBreaker.Connection=nil end
+    if enabled then
+        PredictionBreaker.Connection=RunService.Heartbeat:Connect(function()
+            local character=LocalPlayer.Character
+            local root=character and character:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            local direction=GetPredictionBreakerDirection(root)
+            if not direction then return end
+            local oldVelocity=root.AssemblyLinearVelocity
+            root.AssemblyLinearVelocity=direction*PredictionBreaker.Speed
+            RunService.RenderStepped:Wait()
+            if root.Parent then root.AssemblyLinearVelocity=oldVelocity end
+        end)
+    end
+end
 do -- Antis page
     local Page        = Window:Page({Name="Antis", SubPages=false})
     local AntiHitSec  = Page:Section({Name="Anti hit", Side=1})
+
+    AntiHitSec:Toggle({Name="Prediction breaker", Flag="CAT_AN_PredictionBreaker", Default=false, Callback=function(v)
+        SetPredictionBreaker(v)
+    end}):Keybind({Flag="CAT_AN_PredictionBreaker_KB", Mode="Toggle", Callback=function(v)
+        if Library and Library.SetFlags and Library.SetFlags["CAT_AN_PredictionBreaker"] then Library.SetFlags["CAT_AN_PredictionBreaker"](v) end
+    end})
 
     AntiHitSec:Dropdown({Name="Head mode", Flag="CAT_Head_mode_59", Items={"Hide head","Yaw head","Custom"}, Callback=function(v)
         if not v and OriginalNeckC0 then
@@ -9210,8 +9270,8 @@ RunService.Heartbeat:Connect(function()
                     if nameL then
                         nameL.Visible = showName
                         if showName then
-                            if table.find(WhiteList,player.Name)~=nil then nameL.TextColor3=Color3.fromRGB(135,206,235)
-                            elseif table.find(TargetList,player.Name)~=nil then nameL.TextColor3=Color3.fromRGB(255,0,0)
+                            if table.find(WhiteList,player.Name)~=nil then nameL.TextColor3=TargetColors.Whitelist
+                            elseif table.find(TargetList,player.Name)~=nil then nameL.TextColor3=TargetColors.Target
                             else nameL.TextColor3=Color3.fromRGB(255,255,255) end
                         end
                     end
