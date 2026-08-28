@@ -8078,7 +8078,7 @@ end)
 -- =====================================================================
 ;(function()
 local Window    = Library:Window({Logo="77218680285262", FadeTime=0.3})
-local Watermark = Library:Watermark("Cat.gg")
+local Watermark = Library:Watermark("guihax.lol")
 local KeybindList = Library:KeybindList()
 
 do -- Combat page
