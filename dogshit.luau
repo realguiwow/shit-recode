@@ -6269,7 +6269,8 @@ end)
 
 -- == State ==
 local RB_State, RF_State, AutoReload, DownCheck   = false, false, false, false
-local PredictionEnabled, PredictionTime               = false, 0.12
+local PredictionEnabled, PredictionTime, PredictionMode = false, 0.12, "velocity"
+local PositionPredictionCache = {}
 local Debug_Rays, TargetMode, HitSoundSelection, KillSoundSelection = false, "Near", "None", "None"
 local Origin_Radius, Hit_Radius                   = 18.50, 23.50
 local Origin_Scans, Hit_Scans                     = 24, 24
@@ -6352,7 +6353,7 @@ local TracerProperties = {
     ["Lightning"] = {Texture="rbxassetid://7151778302",Brightness=1.5,Transparency=NumberSequence.new(0.45),LightEmission=1,LightInfluence=0,Segments=10,TextureLength=1,TextureMode=Enum.TextureMode.Stretch,TextureSpeed=1,Width0=1.2,Width1=1.2,FaceCamera=true},
     ["DNA"] = {Texture="rbxassetid://7071778278",Brightness=1.5,Transparency=NumberSequence.new(0.45),LightEmission=1,LightInfluence=0,Segments=1,TextureLength=12,TextureMode=Enum.TextureMode.Wrap,TextureSpeed=1,Width0=0.6,Width1=0.6,FaceCamera=true},
 }
-local TR = {Enabled=false, Size=1, Color=Color3.fromRGB(255,255,255), Alpha=0, Texture="Obelus"}
+local TR = {Enabled=false, Size=1, TextureSpeed=0, Color=Color3.fromRGB(255,255,255), Alpha=0, Texture="Obelus"}
 local TargetColors = {Whitelist=Color3.fromRGB(135,206,235), Target=Color3.fromRGB(255,0,0)}
 local HitLogEnabled                               = false
 
@@ -6825,7 +6826,7 @@ local function CreateTracer(origin, dir)
     beam.Segments = props.Segments
     beam.TextureLength = props.TextureLength
     beam.TextureMode = props.TextureMode
-    beam.TextureSpeed = props.TextureSpeed
+    beam.TextureSpeed = TR.TextureSpeed
     beam.Width0, beam.Width1 = props.Width0 * TR.Size, props.Width1 * TR.Size
     beam.FaceCamera = props.FaceCamera
     beam.Color = ColorSequence.new(TR.Color)
@@ -8160,6 +8161,13 @@ do -- Combat page
             Locked_Path=nil
             Valid_Pair=nil
         end})
+        s1:Dropdown({Name="Prediction Mode", Flag="CAT_Prediction_Mode_29", Items={"velocity","position"}, Default="velocity", Callback=function(v)
+            PredictionMode=v
+            PositionPredictionCache={}
+            Locked_Path=nil
+            Valid_Pair=nil
+            WB.Cached=false
+        end})
       s1:Slider({Name="Max Cache", Flag="CAT_Max_Cache_30",    Min=0.1, Max=25,  Default=0.35,  Decimals=0.01, Callback=function(v) WB.Threshold=v end})
         s1:Dropdown({Name="Cache Mode", Flag="CAT_Cache_Mode_30", Items={"old","velocity"}, Default="old", Callback=function(v)
             CacheMode=v
@@ -8278,6 +8286,7 @@ do -- Visuals page
         t:Colorpicker({Name="Tracer Color", Flag="CAT_Tracer_Color_39", Default=TR.Color, Callback=function(c,a) TR.Color=c; TR.Alpha=a end})
         sec:Dropdown({Name="Texture", Flag="CAT_Tracer_Texture_40", Items={"Obelus","Lightning","DNA"}, Default=TR.Texture, Multi=false, Callback=function(v) TR.Texture=tostring(v) end})
         sec:Slider({Name="Size", Flag="CAT_Size_40", Min=0.1, Max=10, Default=1, Decimals=0.1, Callback=function(v) TR.Size=v end})
+        sec:Slider({Name="Texture Speed", Flag="CAT_Texture_Speed_41", Min=0, Max=1, Default=0, Decimals=0.01, Callback=function(v) TR.TextureSpeed=v end})
     end
 
     do -- Hit Log
@@ -8584,6 +8593,7 @@ Players.PlayerAdded:Connect(function(p)
     PL_TargetSearch:Add(p.Name); PL_WhiteSearch:Add(p.Name)
 end)
 Players.PlayerRemoving:Connect(function(p)
+    PositionPredictionCache[p]=nil
     PL_TargetSearch:Remove(p.Name); PL_WhiteSearch:Remove(p.Name); clearBoxes(p)
     if p.Character then
         local t1=p.Character:FindFirstChild("CAT_NameTag")
@@ -8901,11 +8911,29 @@ local function GetPredictionPart(target,myPos,predictionTime)
     local char=target and target.Character
     if not char then return nil,nil end
     local names={"Head","UpperTorso","Torso","LowerTorso","LeftUpperArm","Left Arm","RightUpperArm","Right Arm","LeftUpperLeg","Left Leg","RightUpperLeg","Right Leg"}
+    local root=char:FindFirstChild("HumanoidRootPart")
+    local positionVelocity=Vector3.zero
+    local now=os.clock()
+    if PredictionMode=="position" and root then
+        local previous=PositionPredictionCache[target]
+        if previous then
+            local dt=now-previous.Time
+            if dt>0.0001 and dt<0.25 then
+                positionVelocity=(root.Position-previous.Position)/dt
+            end
+        end
+        PositionPredictionCache[target]={Position=root.Position,Time=now}
+    end
     local bestPart,bestPos,bestDist=nil,nil,math.huge
     for _,name in ipairs(names) do
         local part=char:FindFirstChild(name)
         if part and part:IsA("BasePart") then
-            local predictedPos=part.Position+(part.AssemblyLinearVelocity*predictionTime)
+            local predictedPos
+            if PredictionMode=="position" then
+                predictedPos=part.Position+(positionVelocity*predictionTime)
+            else
+                predictedPos=part.Position+(part.AssemblyLinearVelocity*predictionTime)
+            end
             local dist=(myPos-predictedPos).Magnitude
             if dist<bestDist then
                 bestDist=dist
