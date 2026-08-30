@@ -6282,6 +6282,7 @@ local CacheVelocityChangedAt                        = 0
 local Last_Shot, Valid_Pair, Locked_Path          = 0, nil, nil
 local WB = {LastScan=0, LastMicroScan=0, Cached=false, Toggle=false, Threshold=0.35, Round=0}
 local NoFallEnabled                               = false
+local TargetInfoEnabled                           = false
 local NR = {Enabled=false, Conns={}, OrigVals={}, Cache={}, RecoilVal=0}
 
 -- World Visuals
@@ -6611,7 +6612,7 @@ end
 local HitLog = { ActiveLogs = {} }
 HitLog.THEME = {
     RowHeight = 13, PaddingY = 7, SidePadding = 16, FontSize = 10,
-    Font = SilkscreenFont,
+    Font = (Library and Library.Font) or SilkscreenFont,
     Color_Bg        = Color3.fromRGB(0, 0, 0),
     Color_Accent    = Color3.fromRGB(0, 255, 0),
     Color_Secondary = Color3.fromRGB(200, 200, 200),
@@ -6729,11 +6730,13 @@ local function AddLogEntry(text)
     pad.PaddingLeft  = UDim.new(0, HitLog.THEME.SidePadding)
     pad.PaddingRight = UDim.new(0, HitLog.THEME.SidePadding)
     pad.Parent = bg
+    local theme = Library and Library.Theme
+    local uiColor = (theme and (theme.Accent or theme.Text)) or HitLog.THEME.Color_Accent
     local lbl = Instance.new("TextLabel")
     lbl.Name = "Content"; lbl.AutomaticSize = Enum.AutomaticSize.X
     lbl.Size = UDim2.new(0,0,1,0); lbl.BackgroundTransparency = 1
-    lbl.Text = text; lbl.TextColor3 = HitLog.THEME.Color_Secondary
-    lbl.TextSize = HitLog.THEME.FontSize; lbl.FontFace = HitLog.THEME.Font
+    lbl.Text = text; lbl.TextColor3 = uiColor
+    lbl.TextSize = HitLog.THEME.FontSize; lbl.FontFace = (Library and Library.Font) or HitLog.THEME.Font
     lbl.RichText = true; lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.TextTransparency = 1; lbl.Parent = bg
     table.insert(HitLog.ActiveLogs, bg)
@@ -8095,7 +8098,7 @@ end)
 -- =====================================================================
 ;(function()
 local Window    = Library:Window({Logo="77218680285262", FadeTime=0.3})
-local Watermark = Library:Watermark("guihax.lol")
+local Watermark = Library:Watermark("J1nLanhaxx.lua | FOREVER")
 local KeybindList = Library:KeybindList()
 
 do -- Combat page
@@ -8186,6 +8189,378 @@ do -- Combat page
         s2:Dropdown({Name="Kill Sound", Flag="CAT_Kill_Sound_37", Items={"None","Ultra Kill","Laugh","Fatality","Sorry"}, Default="None", Callback=function(v) KillSoundSelection=v end})
     end
 end
+
+local TargetInfoEnabled = false
+local TargetInfoInputService = game:GetService("UserInputService")
+
+local TargetInfoGui = Instance.new("ScreenGui")
+TargetInfoGui.Name = "CAT_TargetInfo"
+TargetInfoGui.ResetOnSpawn = false
+TargetInfoGui.IgnoreGuiInset = true
+TargetInfoGui.DisplayOrder = 100
+TargetInfoGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+TargetInfoGui.Parent = gethui and gethui() or game:GetService("CoreGui")
+
+local TargetInfoFrame = Instance.new("Frame")
+TargetInfoFrame.Name = "TargetInfo"
+TargetInfoFrame.Parent = TargetInfoGui
+TargetInfoFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+TargetInfoFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+TargetInfoFrame.Size = UDim2.new(0, 330, 0, 150)
+TargetInfoFrame.BackgroundColor3 = Color3.fromRGB(14, 17, 15)
+TargetInfoFrame.BorderSizePixel = 0
+TargetInfoFrame.Visible = false
+TargetInfoFrame.Active = true
+TargetInfoFrame.Selectable = true
+
+local TargetInfoScale = Instance.new("UIScale")
+TargetInfoScale.Parent = TargetInfoFrame
+
+local TargetInfoOuterStroke = Instance.new("UIStroke")
+TargetInfoOuterStroke.Parent = TargetInfoFrame
+TargetInfoOuterStroke.Thickness = 1
+
+local TargetInfoInner = Instance.new("Frame")
+TargetInfoInner.Name = "Info"
+TargetInfoInner.Parent = TargetInfoFrame
+TargetInfoInner.Position = UDim2.new(0, 7, 0, 28)
+TargetInfoInner.Size = UDim2.new(1, -14, 1, -35)
+TargetInfoInner.BorderSizePixel = 0
+
+local TargetInfoInnerStroke = Instance.new("UIStroke")
+TargetInfoInnerStroke.Parent = TargetInfoInner
+TargetInfoInnerStroke.Thickness = 1
+
+local TargetInfoHeader = Instance.new("TextButton")
+TargetInfoHeader.Name = "DragHeader"
+TargetInfoHeader.Parent = TargetInfoFrame
+TargetInfoHeader.Position = UDim2.new(0, 0, 0, 0)
+TargetInfoHeader.Size = UDim2.new(1, 0, 0, 26)
+TargetInfoHeader.BackgroundTransparency = 1
+TargetInfoHeader.BorderSizePixel = 0
+TargetInfoHeader.Text = "Indicators"
+TargetInfoHeader.TextSize = 12
+TargetInfoHeader.TextXAlignment = Enum.TextXAlignment.Left
+TargetInfoHeader.TextYAlignment = Enum.TextYAlignment.Center
+TargetInfoHeader.AutoButtonColor = false
+TargetInfoHeader.Active = true
+
+local HeaderPadding = Instance.new("UIPadding")
+HeaderPadding.Parent = TargetInfoHeader
+HeaderPadding.PaddingLeft = UDim.new(0, 8)
+
+local TargetInfoLabel = Instance.new("TextLabel")
+TargetInfoLabel.Parent = TargetInfoInner
+TargetInfoLabel.BackgroundTransparency = 1
+TargetInfoLabel.Position = UDim2.new(0, 8, 0, 5)
+TargetInfoLabel.Size = UDim2.new(1, -16, 0, 18)
+TargetInfoLabel.Text = "Info"
+TargetInfoLabel.TextSize = 11
+TargetInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local TargetInfoAvatar = Instance.new("ImageLabel")
+TargetInfoAvatar.Parent = TargetInfoInner
+TargetInfoAvatar.Position = UDim2.new(0, 9, 0, 28)
+TargetInfoAvatar.Size = UDim2.new(0, 60, 0, 60)
+TargetInfoAvatar.BackgroundColor3 = Color3.fromRGB(18, 20, 24)
+TargetInfoAvatar.BorderSizePixel = 0
+TargetInfoAvatar.ScaleType = Enum.ScaleType.Crop
+TargetInfoAvatar.Image = ""
+
+local AvatarStroke = Instance.new("UIStroke")
+AvatarStroke.Parent = TargetInfoAvatar
+AvatarStroke.Thickness = 1
+
+local TargetInfoName = Instance.new("TextLabel")
+TargetInfoName.Parent = TargetInfoInner
+TargetInfoName.BackgroundTransparency = 1
+TargetInfoName.Position = UDim2.new(0, 78, 0, 28)
+TargetInfoName.Size = UDim2.new(1, -87, 0, 20)
+TargetInfoName.Text = "@No Target"
+TargetInfoName.TextSize = 12
+TargetInfoName.TextXAlignment = Enum.TextXAlignment.Left
+TargetInfoName.TextTruncate = Enum.TextTruncate.AtEnd
+
+local TargetInfoDistance = Instance.new("TextLabel")
+TargetInfoDistance.Parent = TargetInfoInner
+TargetInfoDistance.BackgroundTransparency = 1
+TargetInfoDistance.Position = UDim2.new(0, 78, 0, 48)
+TargetInfoDistance.Size = UDim2.new(1, -87, 0, 16)
+TargetInfoDistance.Text = "Distance: N/A"
+TargetInfoDistance.TextSize = 10
+TargetInfoDistance.TextXAlignment = Enum.TextXAlignment.Left
+
+local TargetInfoHealthText = Instance.new("TextLabel")
+TargetInfoHealthText.Parent = TargetInfoInner
+TargetInfoHealthText.BackgroundTransparency = 1
+TargetInfoHealthText.Position = UDim2.new(0, 78, 0, 66)
+TargetInfoHealthText.Size = UDim2.new(1, -87, 0, 16)
+TargetInfoHealthText.Text = "0/0"
+TargetInfoHealthText.TextSize = 10
+TargetInfoHealthText.TextXAlignment = Enum.TextXAlignment.Left
+
+local TargetInfoHealthBack = Instance.new("Frame")
+TargetInfoHealthBack.Parent = TargetInfoInner
+TargetInfoHealthBack.Position = UDim2.new(0, 78, 0, 83)
+TargetInfoHealthBack.Size = UDim2.new(1, -92, 0, 8)
+TargetInfoHealthBack.BorderSizePixel = 0
+
+local TargetInfoHealthBar = Instance.new("Frame")
+TargetInfoHealthBar.Parent = TargetInfoHealthBack
+TargetInfoHealthBar.Position = UDim2.new(0, 0, 0, 0)
+TargetInfoHealthBar.Size = UDim2.new(0, 0, 1, 0)
+TargetInfoHealthBar.BorderSizePixel = 0
+
+local TargetInfoHealthCorner = Instance.new("UICorner")
+TargetInfoHealthCorner.CornerRadius = UDim.new(0, 2)
+TargetInfoHealthCorner.Parent = TargetInfoHealthBack
+
+local TargetInfoBarCorner = Instance.new("UICorner")
+TargetInfoBarCorner.CornerRadius = UDim.new(0, 2)
+TargetInfoBarCorner.Parent = TargetInfoHealthBar
+
+local TargetInfoLevel = Instance.new("TextLabel")
+TargetInfoLevel.Parent = TargetInfoInner
+TargetInfoLevel.BackgroundTransparency = 1
+TargetInfoLevel.Position = UDim2.new(0, 9, 1, -22)
+TargetInfoLevel.Size = UDim2.new(0.5, -9, 0, 16)
+TargetInfoLevel.Text = "Level: N/A"
+TargetInfoLevel.TextSize = 10
+TargetInfoLevel.TextXAlignment = Enum.TextXAlignment.Left
+
+local TargetInfoAge = Instance.new("TextLabel")
+TargetInfoAge.Parent = TargetInfoInner
+TargetInfoAge.BackgroundTransparency = 1
+TargetInfoAge.Position = UDim2.new(0.5, 0, 1, -22)
+TargetInfoAge.Size = UDim2.new(0.5, -9, 0, 16)
+TargetInfoAge.Text = "Account: N/A"
+TargetInfoAge.TextSize = 10
+TargetInfoAge.TextXAlignment = Enum.TextXAlignment.Right
+
+local ResizeButton = Instance.new("TextButton")
+ResizeButton.Parent = TargetInfoFrame
+ResizeButton.AnchorPoint = Vector2.new(1, 1)
+ResizeButton.Position = UDim2.new(1, -3, 1, -3)
+ResizeButton.Size = UDim2.new(0, 24, 0, 24)
+ResizeButton.BackgroundTransparency = 1
+ResizeButton.Text = "◢"
+ResizeButton.TextSize = 17
+ResizeButton.AutoButtonColor = false
+ResizeButton.Active = true
+ResizeButton.ZIndex = 20
+
+local Dragging = false
+local Resizing = false
+local ActiveInput = nil
+local DragStart = nil
+local StartPosition = nil
+local ResizeStart = nil
+local StartSize = nil
+
+TargetInfoHeader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        Dragging = true
+        Resizing = false
+        ActiveInput = input
+        DragStart = input.Position
+        StartPosition = TargetInfoFrame.Position
+    end
+end)
+
+ResizeButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        Resizing = true
+        Dragging = false
+        ActiveInput = input
+        ResizeStart = input.Position
+        StartSize = TargetInfoFrame.Size
+    end
+end)
+
+TargetInfoInputService.InputChanged:Connect(function(input)
+    if not ActiveInput then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+    if Dragging and DragStart and StartPosition then
+        local delta = input.Position - DragStart
+        TargetInfoFrame.Position = UDim2.new(
+            StartPosition.X.Scale, StartPosition.X.Offset + delta.X,
+            StartPosition.Y.Scale, StartPosition.Y.Offset + delta.Y
+        )
+    elseif Resizing and ResizeStart and StartSize then
+        local delta = input.Position - ResizeStart
+        TargetInfoFrame.Size = UDim2.new(
+            0, math.clamp(StartSize.X.Offset + delta.X, 230, 700),
+            0, math.clamp(StartSize.Y.Offset + delta.Y, 120, 450)
+        )
+    end
+end)
+
+TargetInfoInputService.InputEnded:Connect(function(input)
+    if ActiveInput and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        Dragging = false
+        Resizing = false
+        ActiveInput = nil
+        DragStart = nil
+        ResizeStart = nil
+    end
+end)
+
+local TargetInfoUIFont = (Library and Library.Font) or Font.fromEnum(Enum.Font.Gotham)
+for _, object in ipairs({TargetInfoHeader, TargetInfoLabel, TargetInfoName, TargetInfoDistance, TargetInfoHealthText, TargetInfoLevel, TargetInfoAge, ResizeButton}) do
+    if object and (object:IsA("TextLabel") or object:IsA("TextButton")) then
+        object.FontFace = TargetInfoUIFont
+    end
+end
+
+local TargetInfoThumbCache = {}
+local TargetInfoThumbRequest = {}
+local TargetInfoCurrentUserId = nil
+
+local function TargetInfoIsInTargetList(player)
+    if not player then return false end
+    for _, value in ipairs(TargetList or {}) do
+        if value == player.Name or value == player.DisplayName or tostring(value) == tostring(player.UserId) then
+            return true
+        end
+    end
+    return false
+end
+
+local function GetTargetInfoPlayer()
+    local bestPlayer = nil
+    local bestDistance = math.huge
+    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and TargetInfoIsInTargetList(player) then
+            local character = player.Character
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+
+            if root and humanoid and humanoid.Health > 0 then
+                local distance = localRoot and (localRoot.Position - root.Position).Magnitude or 0
+                if distance < bestDistance then
+                    bestDistance = distance
+                    bestPlayer = player
+                end
+            end
+        end
+    end
+
+    return bestPlayer
+end
+
+local function GetTargetInfoLevel(player)
+    local candidates = {"Level", "level", "LEVEL", "Lvl", "lvl", "Rank", "rank"}
+    for _, name in ipairs(candidates) do
+        local value = player:FindFirstChild(name)
+        if value and (value:IsA("IntValue") or value:IsA("NumberValue") or value:IsA("StringValue")) then
+            return tostring(value.Value)
+        end
+    end
+    for _, containerName in ipairs({"leaderstats", "Stats", "Data", "Values"}) do
+        local container = player:FindFirstChild(containerName)
+        if container then
+            for _, name in ipairs(candidates) do
+                local value = container:FindFirstChild(name)
+                if value and (value:IsA("IntValue") or value:IsA("NumberValue") or value:IsA("StringValue")) then
+                    return tostring(value.Value)
+                end
+            end
+        end
+    end
+    return "N/A"
+end
+
+local function UpdateTargetInfoTheme()
+    local theme = Library and Library.Theme
+    if not theme then return end
+
+    TargetInfoFrame.BackgroundColor3 = theme.Background or TargetInfoFrame.BackgroundColor3
+    TargetInfoInner.BackgroundColor3 = theme.Inline or TargetInfoInner.BackgroundColor3
+    TargetInfoOuterStroke.Color = theme.Accent or TargetInfoOuterStroke.Color
+    TargetInfoInnerStroke.Color = theme.Outline or TargetInfoInnerStroke.Color
+    AvatarStroke.Color = theme.Outline or AvatarStroke.Color
+    TargetInfoHeader.TextColor3 = theme.Text or TargetInfoHeader.TextColor3
+    TargetInfoLabel.TextColor3 = theme.Text or TargetInfoLabel.TextColor3
+    TargetInfoName.TextColor3 = theme.Text or TargetInfoName.TextColor3
+    TargetInfoHealthText.TextColor3 = theme.Text or TargetInfoHealthText.TextColor3
+    TargetInfoLevel.TextColor3 = theme.Text or TargetInfoLevel.TextColor3
+    TargetInfoAge.TextColor3 = theme.Text or TargetInfoAge.TextColor3
+    TargetInfoDistance.TextColor3 = theme["Placeholder Text"] or TargetInfoDistance.TextColor3
+    TargetInfoHealthBack.BackgroundColor3 = theme.Element or TargetInfoHealthBack.BackgroundColor3
+    ResizeButton.TextColor3 = theme.Accent or ResizeButton.TextColor3
+    TargetInfoHealthBar.BackgroundColor3 = theme.Accent or TargetInfoHealthBar.BackgroundColor3
+end
+
+local function ResetTargetInfo()
+    TargetInfoCurrentUserId = nil
+    TargetInfoAvatar.Image = ""
+    TargetInfoName.Text = "@No Target"
+    TargetInfoDistance.Text = "Distance: N/A"
+    TargetInfoHealthText.Text = "0/0"
+    TargetInfoHealthBar.Size = UDim2.new(0, 0, 1, 0)
+    TargetInfoLevel.Text = "Level: N/A"
+    TargetInfoAge.Text = "Account: N/A"
+end
+
+local function UpdateTargetInfo()
+    if not TargetInfoEnabled then return end
+
+    UpdateTargetInfoTheme()
+
+    local target = GetTargetInfoPlayer()
+    if not target then
+        ResetTargetInfo()
+        return
+    end
+
+    local humanoid = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+    local root = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    local localRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    local hp = humanoid and humanoid.Health or 0
+    local maxHp = humanoid and humanoid.MaxHealth or 0
+    local ratio = maxHp > 0 and math.clamp(hp / maxHp, 0, 1) or 0
+    local distance = (root and localRoot) and math.floor((root.Position - localRoot.Position).Magnitude + 0.5) or 0
+
+    TargetInfoName.Text = "@" .. target.Name
+    TargetInfoDistance.Text = "Distance: " .. tostring(distance) .. " studs"
+    TargetInfoHealthText.Text = string.format("%d/%d", math.floor(hp + 0.5), math.floor(maxHp + 0.5))
+    TargetInfoHealthBar.Size = UDim2.new(ratio, 0, 1, 0)
+    TargetInfoLevel.Text = "Level: " .. GetTargetInfoLevel(target)
+    TargetInfoAge.Text = "Account: " .. tostring(target.AccountAge or "N/A") .. " days"
+
+    if TargetInfoCurrentUserId ~= target.UserId then
+        TargetInfoCurrentUserId = target.UserId
+        TargetInfoAvatar.Image = TargetInfoThumbCache[target.UserId] or ""
+    end
+
+    if not TargetInfoThumbCache[target.UserId] and not TargetInfoThumbRequest[target.UserId] then
+        TargetInfoThumbRequest[target.UserId] = true
+        task.spawn(function()
+            local ok, image = pcall(function()
+                return Players:GetUserThumbnailAsync(
+                    target.UserId,
+                    Enum.ThumbnailType.HeadShot,
+                    Enum.ThumbnailSize.Size420x420
+                )
+            end)
+            TargetInfoThumbRequest[target.UserId] = nil
+            if ok then
+                TargetInfoThumbCache[target.UserId] = image
+                if TargetInfoCurrentUserId == target.UserId then
+                    TargetInfoAvatar.Image = image
+                end
+            end
+        end)
+    else
+        TargetInfoAvatar.Image = TargetInfoThumbCache[target.UserId] or ""
+    end
+end
+
+RunService.RenderStepped:Connect(UpdateTargetInfo)
 
 do -- Visuals page
     local Page  = Window:Page({Name="Visuals", SubPages=true})
@@ -8305,6 +8680,15 @@ do -- Visuals page
         ambT:Colorpicker({Name="Fog color", Flag="CAT_VS_FogColor", Default=Color3.fromRGB(190,220,255), Callback=function(c) AMB.Color=c end})
         ambSec:Slider({Name="Fog density", Flag="CAT_VS_FogDensity", Min=0, Max=1, Default=0.45, Decimals=0.01, Callback=function(v) AMB.Density=v end})
         ambSec:Slider({Name="Brightness", Flag="CAT_VS_Brightness", Min=-1, Max=1, Default=0.15, Decimals=0.01, Callback=function(v) AMB.Brightness=v end})
+    end
+
+    do -- Target Info
+        local sec = Sub:Section({Name="Target Info", Side=1})
+        sec:Toggle({Name="Target Info", Flag="CAT_Target_Info", Default=false, Callback=function(v)
+            TargetInfoEnabled = v
+            TargetInfoFrame.Visible = v
+            if v then UpdateTargetInfo() end
+        end})
     end
 
     do -- ESP
@@ -8585,16 +8969,20 @@ do -- PlayerList page
     PL_WhiteSearch = pR:Searchbox({Name="Whitelist", Items=GetAllPlayerNames(), Multi=true,
         Callback=function(v) WhiteList=(typeof(v)=="table" and v or {v}) end})
     pR:Button({Name="Clear Whitelist", Callback=function() WhiteList={}; pcall(function() PL_WhiteSearch:Set({}) end) end})
+
 end
 
 Library:CreateSettingsPage(Window, Watermark, KeybindList)
 
 Players.PlayerAdded:Connect(function(p)
-    PL_TargetSearch:Add(p.Name); PL_WhiteSearch:Add(p.Name)
+    PL_TargetSearch:Add(p.Name)
+    PL_WhiteSearch:Add(p.Name)
 end)
 Players.PlayerRemoving:Connect(function(p)
     PositionPredictionCache[p]=nil
-    PL_TargetSearch:Remove(p.Name); PL_WhiteSearch:Remove(p.Name); clearBoxes(p)
+    PL_TargetSearch:Remove(p.Name)
+    PL_WhiteSearch:Remove(p.Name)
+    clearBoxes(p)
     if p.Character then
         local t1=p.Character:FindFirstChild("CAT_NameTag")
         local t2=p.Character:FindFirstChild("CAT_FFTag")
