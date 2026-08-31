@@ -6549,7 +6549,7 @@ local AC = {
 }
 
 -- Misc
-local MC = {AntiShift=false, ShiftDelay=0.05, SmoothCam=false, LerpSpeed=6, SmoothPos=nil}
+local MC = {AntiShift=false, ShiftDelay=0.05, SmoothCam=false, LerpSpeed=6, SmoothPos=nil, Noclip=false, NoclipParts={}}
 local AutoRefill = {Enabled=false, Last=0, Cooldown=0.32, Range=20, Supported={['G-17']=true,['Beretta']=true,['TEC-9']=true,['M1911']=true}}
 local ShopEvent = nil
 pcall(function() ShopEvent = RepStorage:WaitForChild("Events"):WaitForChild("SSHPRMTE1", 5) end)
@@ -6707,6 +6707,14 @@ local function AnimateRemoveLog(frame)
     task.delay(0.5, function() if frame then frame:Destroy() end end)
 end
 
+local function UpdateHitLogTheme()
+    local accent = (Library and Library.Theme and Library.Theme.Accent) or HitLog.THEME.Color_Accent
+    for _, frame in ipairs(HitLog.ActiveLogs) do
+        local lbl = frame and frame:FindFirstChild("Content")
+        if lbl then lbl.TextColor3 = accent end
+    end
+end
+
 local function AddLogEntry(text)
     if not HitLogEnabled or not HitLog.Container then return end
     if #HitLog.ActiveLogs >= HitLog.THEME.MaxLogs then
@@ -6730,14 +6738,13 @@ local function AddLogEntry(text)
     pad.PaddingLeft  = UDim.new(0, HitLog.THEME.SidePadding)
     pad.PaddingRight = UDim.new(0, HitLog.THEME.SidePadding)
     pad.Parent = bg
-    local theme = Library and Library.Theme
-    local uiColor = (theme and (theme.Accent or theme.Text)) or HitLog.THEME.Color_Accent
+    local uiColor = (Library and Library.Theme and Library.Theme.Accent) or HitLog.THEME.Color_Accent
     local lbl = Instance.new("TextLabel")
     lbl.Name = "Content"; lbl.AutomaticSize = Enum.AutomaticSize.X
     lbl.Size = UDim2.new(0,0,1,0); lbl.BackgroundTransparency = 1
     lbl.Text = text; lbl.TextColor3 = uiColor
     lbl.TextSize = HitLog.THEME.FontSize; lbl.FontFace = (Library and Library.Font) or HitLog.THEME.Font
-    lbl.RichText = true; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.RichText = false; lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.TextTransparency = 1; lbl.Parent = bg
     table.insert(HitLog.ActiveLogs, bg)
     local ty = (#HitLog.ActiveLogs-1)*(HitLog.THEME.RowHeight+HitLog.THEME.PaddingY)
@@ -6794,14 +6801,8 @@ local function BindAllKillSounds()
 end
 
 local function ProcessHitLog(tName, toolName, dmg, dist, cached)
-    local s = string.format("rgb(%d,%d,%d)", 200,200,200)
-    local g = string.format("rgb(%d,%d,%d)", 0,255,0)
-    local ct = cached and string.format(' <font color="%s">Via Cache</font>', g) or ""
-    AddLogEntry(string.format(
-        '<font color="%s">Hit </font><font color="%s">%s </font><font color="%s">use </font>'..
-        '<font color="%s">%s </font><font color="%s">in the Head for </font>'..
-        '<font color="%s">%s </font><font color="%s">damage </font><font color="%s">%sm</font>%s',
-        s,g,tName,s,g,toolName,s,g,tostring(dmg),s,g,dist,ct))
+    local suffix = cached and " Via Cache" or ""
+    AddLogEntry(string.format("Hit %s use %s in the Head for %s damage %sm%s", tName, toolName, tostring(dmg), tostring(dist), suffix))
 end
 
 InitHitLog()
@@ -7353,20 +7354,24 @@ end
 
 local function updatePlayerBoxes(p)
     if not p or not espSets.enabled then clearBoxes(p) return end
-    if espSets.targetOnly and not table.find(TargetList,p.Name) then clearBoxes(p) return end
+    if espSets.targetOnly and not table.find(TargetList,p.Name) and not table.find(WhiteList,p.Name) then clearBoxes(p) return end
     local char = p.Character
     if not char or not char:FindFirstChildOfClass("Humanoid") then return end
     clearBoxes(p); BoxESP.Boxes[p]={}
+    local isTarget = table.find(TargetList, p.Name) ~= nil
+    local isWhitelist = table.find(WhiteList, p.Name) ~= nil
+    local outColor = isTarget and TargetColors.Target or (isWhitelist and TargetColors.Whitelist or espSets.outCol)
+    local inColor = isTarget and TargetColors.Target or (isWhitelist and TargetColors.Whitelist or espSets.inCol)
     for _, pn in pairs(bodyParts) do
         local obj = char:FindFirstChild(pn)
         if obj and obj:IsA("BasePart") then
             if obj.Name=="Head" then
                 local s=(obj.Size.X/2)*0.6
-                if espSets.outline then table.insert(BoxESP.Boxes[p], createAdorn("CylinderHandleAdornment",obj,"out",-1,espSets.outCol,espSets.outAlpha,Vector2.new(s+espSets.outSize,obj.Size.Z+espSets.outSize))) end
-                if espSets.inline  then table.insert(BoxESP.Boxes[p], createAdorn("CylinderHandleAdornment",obj,"in", 1,espSets.inCol, espSets.inAlpha, Vector2.new(s+espSets.inSize, obj.Size.Z+espSets.inSize)))  end
+                if espSets.outline then table.insert(BoxESP.Boxes[p], createAdorn("CylinderHandleAdornment",obj,"out",-1,outColor,espSets.outAlpha,Vector2.new(s+espSets.outSize,obj.Size.Z+espSets.outSize))) end
+                if espSets.inline  then table.insert(BoxESP.Boxes[p], createAdorn("CylinderHandleAdornment",obj,"in", 1,inColor, espSets.inAlpha, Vector2.new(s+espSets.inSize, obj.Size.Z+espSets.inSize)))  end
             else
-                if espSets.outline then table.insert(BoxESP.Boxes[p], createAdorn("BoxHandleAdornment",obj,"out",-1,espSets.outCol,espSets.outAlpha,obj.Size+Vector3.new(espSets.outSize,espSets.outSize,espSets.outSize))) end
-                if espSets.inline  then table.insert(BoxESP.Boxes[p], createAdorn("BoxHandleAdornment",obj,"in", 1,espSets.inCol, espSets.inAlpha, obj.Size+Vector3.new(espSets.inSize, espSets.inSize, espSets.inSize)))  end
+                if espSets.outline then table.insert(BoxESP.Boxes[p], createAdorn("BoxHandleAdornment",obj,"out",-1,outColor,espSets.outAlpha,obj.Size+Vector3.new(espSets.outSize,espSets.outSize,espSets.outSize))) end
+                if espSets.inline  then table.insert(BoxESP.Boxes[p], createAdorn("BoxHandleAdornment",obj,"in", 1,inColor, espSets.inAlpha, obj.Size+Vector3.new(espSets.inSize, espSets.inSize, espSets.inSize)))  end
             end
         end
     end
@@ -8942,6 +8947,7 @@ do -- Misc page
     end})
     sL:Toggle({Name="Anti auto shiftlock", Flag="CAT_Anti_auto_shiftlock_69", Callback=function(v) MC.AntiShift=v end}):Keybind({Flag="CAT_Anti_auto_shiftlock_69_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Anti_auto_shiftlock_69"] then Library.SetFlags["CAT_Anti_auto_shiftlock_69"](v) end end})
     sL:Slider( {Name="Delay", Flag="CAT_Delay_70", Min=0.01, Max=0.50, Default=0.05, Decimals=0.01, Callback=function(v) MC.ShiftDelay=v end})
+    sL:Toggle({Name="Noclip", Flag="CAT_Noclip", Default=false, Callback=function(v) MC.Noclip=v end}):Keybind({Flag="CAT_Noclip_KB", Mode="Toggle", Callback=function(v) if Library and Library.SetFlags and Library.SetFlags["CAT_Noclip"] then Library.SetFlags["CAT_Noclip"](v) end end})
     
     local sFarm = Page:Section({Name="Farm", Side=1})
     sFarm:Toggle({Name="Auto pick up money", Flag="CAT_MC_AutoPickup", Callback=function(v) 
@@ -8967,8 +8973,8 @@ do -- PlayerList page
     pL:Button({Name="Clear Targets", Callback=function() TargetList={}; pcall(function() PL_TargetSearch:Set({}) end); if espSets.enabled and espSets.targetOnly then refreshAllESP() end end})
     local pR = Page:Section({Name="Whitelist", Side=2})
     PL_WhiteSearch = pR:Searchbox({Name="Whitelist", Items=GetAllPlayerNames(), Multi=true,
-        Callback=function(v) WhiteList=(typeof(v)=="table" and v or {v}) end})
-    pR:Button({Name="Clear Whitelist", Callback=function() WhiteList={}; pcall(function() PL_WhiteSearch:Set({}) end) end})
+        Callback=function(v) WhiteList=(typeof(v)=="table" and v or {v}); if espSets.enabled then refreshAllESP() end end})
+    pR:Button({Name="Clear Whitelist", Callback=function() WhiteList={}; pcall(function() PL_WhiteSearch:Set({}) end); if espSets.enabled then refreshAllESP() end end})
 
 end
 
@@ -9648,6 +9654,48 @@ RunService.Heartbeat:Connect(function()
     Last_Shot=tick()
 end)
 
+-- == Noclip / HitLog Theme ==
+local function ApplyNoclip(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if MC.NoclipParts[part] == nil then
+                MC.NoclipParts[part] = part.CanCollide
+            end
+            part.CanCollide = false
+        end
+    end
+end
+
+local function RestoreNoclip()
+    for part, state in pairs(MC.NoclipParts) do
+        if part and part.Parent then
+            part.CanCollide = state
+        end
+    end
+    MC.NoclipParts = {}
+end
+
+-- Stepped runs before physics collision resolution, which makes noclip reliable.
+RunService.Stepped:Connect(function()
+    UpdateHitLogTheme()
+    if MC.Noclip then
+        ApplyNoclip(LocalPlayer.Character)
+    elseif next(MC.NoclipParts) then
+        RestoreNoclip()
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    MC.NoclipParts = {}
+    if MC.Noclip then
+        task.defer(function()
+            char:WaitForChild("HumanoidRootPart", 5)
+            ApplyNoclip(char)
+        end)
+    end
+end)
+
 -- == Anti Shiftlock Heartbeat ==
 RunService.Heartbeat:Connect(function()
     if not MC.AntiShift then return end
@@ -9673,7 +9721,7 @@ RunService.Heartbeat:Connect(function()
             if player~=LocalPlayer and player.Character then
                 local ch=player.Character; local h=ch:FindFirstChildOfClass("Humanoid")
                 local alive=h and h.Health>0
-                local show=alive and (not espSets.targetOnly or table.find(TargetList,player.Name)~=nil)
+                local show=alive and (not espSets.targetOnly or table.find(TargetList,player.Name)~=nil or table.find(WhiteList,player.Name)~=nil)
                 local tag=GetCustomTag(ch,"CAT_NameTag",CONFIG.NameOffset)
                 if tag then
                     local showName = NametagEnabled and show
